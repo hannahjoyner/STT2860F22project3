@@ -1,7 +1,7 @@
 ---
 title: "Group Portion: Galton Data"
 subtitle: "STT2860 F22 Project 03"
-author: "PUT YOUR GROUP MEMBERS' NAMES HERE"
+author: "Jordan Klein, Kate Metzger, Hannah Joyner"
 date: "`r format(Sys.time(), '%A, %B %d, %Y @ %I:%M %p')`"
 output: 
   html_document: 
@@ -24,7 +24,11 @@ knitr::opts_chunk$set(
 ### Packages Used
 
 ```{r loadpackages}
-
+library(tidyverse)
+library(knitr)
+library(ggplot2)
+library(readr)
+library(dplyr)
 ```
 
 ### Datasets Used
@@ -43,7 +47,7 @@ Francis Galton, a cousin of Charles Darwin, studied the relationship between par
 * `Height`: child’s measured height in inches
 
 ```{r loadgaltondata}
-
+galtondata <- read_rds("data/galtondata.rds")
 ```
 
 <hr>
@@ -74,6 +78,18 @@ Manipulate the dataset so that it has the following structure.
    * ascending order of measured height within each sex of child
 
 ```{r datasetmanip1}
+childdata <- galtondata %>%
+  transmute(familyid = FamilyID, 
+            num_children = Children, 
+            father_ht = Father, 
+            mother_ht = Mother*1.08, 
+            midparent_ht = (father_ht + mother_ht)/2, 
+            child_sex = ifelse(Child == "Daughter", "daughter", "son"), 
+            child_ht_raw = Height, 
+            child_ht = ifelse(child_sex == "daughter", child_ht_raw*1.08, child_ht_raw)) %>%
+  arrange(child_ht_raw) %>%
+  arrange(desc(child_sex)) %>%
+  arrange(familyid)
 
 ```
 
@@ -82,7 +98,9 @@ Manipulate the dataset so that it has the following structure.
 From the child dataset, select the variables `familyid`, `num_children`, `father_ht`, and `mother_ht`. Use `distinct()` to reduce the dataset so it contains only one unique row per family. (Hint: The final dataset should have 205 rows/observations and four variables/columns.)
 
 ```{r datasetmanip2}
-
+childdata %>%
+  select(familyid, num_children, father_ht, mother_ht) %>%
+  distinct(familyid, .keep_all = TRUE)
 ```
 
 ### Visualization 1: Updated Scatterplot
@@ -116,7 +134,16 @@ Include the following.
 * use `theme()` to move the legend to the bottom of the scatterplot
 
 ```{r updatedscatterplot}
-
+ggplot(childdata, aes(x = child_ht_raw, y = midparent_ht, color = child_sex)) +
+  geom_point(size = 2, alpha = 0.5) +
+  scale_color_manual(values = c("#CC79A7", "#0072B2")) +
+  coord_fixed() +
+  theme_linedraw() +
+  labs(title = "Adult Childs Height compared to Mean Parents Height", 
+       x = "Child Height (in)", 
+       y = "Average Parent Height (in)", 
+       color = "gender of child") +
+  theme(legend.position = "bottom", legend.title = element_text())
 ```
 
 ### Visualization 2: "Transmuting" Effect
@@ -128,13 +155,26 @@ Include the following.
 Use `histogram()` or `density()` to plot `child_ht_raw`. Use faceting so that there is a separate plot for sons and daughters, with one plot above the other (*not* side by side). If you use a histogram, change the default `bins = 30` to a reasonable value for the data. Choose appropriate colors, labels, themes, and/or and other types of formatting that you feel will enhance the meaning or visual appearance of the plot. 
 
 ```{r heightcomparison1}
-
+ggplot(childdata, aes(x = child_ht_raw, fill = child_sex)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~child_sex, ncol = 1) +
+  theme_bw() +
+  labs(title = "Heights of Sons and Daughters", 
+       x = "Height (in)",
+       y = "Frequency",
+       fill = "gender of child") 
 ```
 
 Use `group_by()` and `summarize()` to calculate the mean, standard deviation, minimum, median, and maximum of the measured heights for sons and daughters.
 
 ```{r rawhtsummaries}
-
+childdata %>%
+  group_by(child_sex) %>%
+  summarize(mean = mean(child_ht_raw), 
+            sd = sd(child_ht_raw), 
+            minimum = min(child_ht_raw),
+            median = median(child_ht_raw), 
+            maximum = max(child_ht_raw))
 ```
 
 #### The Transmuted Data
@@ -142,13 +182,26 @@ Use `group_by()` and `summarize()` to calculate the mean, standard deviation, mi
 Create a similar plot as above, this time for `child_ht`. Be sure that the labels you use clearly distinguish between this plot and the previous one, especially if the other styling is very similar.
 
 ```{r heightcomparison2}
-
+ggplot(childdata, aes(x = child_ht, fill = child_sex)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~child_sex, ncol = 1) +
+  theme_bw() +
+  labs(title = " Transmuted Heights of Sons and Daughters", 
+       x = "Height (in)",
+       y = "Frequency",
+       fill = "gender of child") 
 ```
 
 Use `group_by()` and `summarize()` to calculate the mean, standard deviation, minimum, median, and maximum of the transmuted heights for sons and daughters.
 
 ```{r transhtsummaries}
-
+childdata %>%
+  group_by(child_sex) %>%
+  summarize(mean = mean(child_ht), 
+            sd = sd(child_ht), 
+            minimum = min(child_ht),
+            median = median(child_ht), 
+            maximum = max(child_ht))
 ```
 
 ### Visualization 3: Number of Children
@@ -158,7 +211,18 @@ Use `group_by()` and `summarize()` to calculate the mean, standard deviation, mi
 Create a barplot to show the distribution of the number of children per family. Set the bars to something other than the default `width`. Scale the x-axis so that there is a tick mark for each bar. Choose appropriate colors, labels, themes, and/or and other types of formatting that you feel will enhance the meaning or visual appearance of the plot.  (Hint: Use `count()` to find out how many families have a given number of children, then use that smaller summary dataset to create your plot.)
 
 ```{r numchildrenbarplot}
+numchild <- childdata %>%
+  count(num_children)
 
+head(numchild)
+
+ggplot(numchild, aes(x = num_children, y = n)) +
+  geom_col(width = .75, fill = "#56B4E9") +
+  theme_bw() +
+  labs(title = "Number of Children Per Family", 
+       x = "Number of Children",
+       y = "Frequency") +
+  scale_x_continuous(breaks = seq(0, 15, 1))
 ```
 
 <hr>
@@ -169,23 +233,483 @@ Create a barplot to show the distribution of the number of children per family. 
 
 **ANSWER**
 
+We think that our scatterplot is an improvement over Galton's original diagram. We found Galton's original diagram difficult to interpret. The only improvement that comes to mind would be altering the axis labels and tick marks on the y axes of our graphs in order to make it more clear what the exact y values are. There are not any other modifications that we can think of to improve our scatterplot; we have all the information we need in an informative and easy to read way. 
+
+
 **Question 2:** Did Galton's "transmuting" of daughters' heights succeed in making their data more similar to sons? How can you tell, based on your data visualizations and summaries?
 
 **ANSWER**
 
-ERASE THIS TEXT AND ANSWER QUESTION HERE
+Yes, the daughters' heights were more similar to the sons' after transmuting the data. We can tell by looking at the distributions of the daughters' heights with and without transmuting the data. Without the transmuting of the data, the daughters' heights range from 56 to 70.5 inches, with the transmuting of the data the daughters' heights range from 60.48	to 76.14 inches, and the sons' heights range from 60 to 79 inches. The increase in the daughters' heights makes them much closer to the sons'!
 
 **Question 3:** Explain the rationale behind the choices you made when creating your plots, such as size, color, transparency, or other features that were not explicitly stated. What motivated your decisions? 
 
 **ANSWER**
 
-ERASE THIS TEXT AND ANSWER QUESTION HERE
+Color was often used to make the plot look more visually pleasing or to contrast two different subgroups. We also changed the bin width of histograms so the data was easier to read and allows a reader to be able to differentiate between the different groups. We also changed the size of the points in the scatter plots to emphasize each point, without causing too much overlap of the other data points, causing a cluster that you are unable to read. Additionally we altered the transparency of the points in our scatter plot in order to make the density of data points at a specific spot easier to see, for example, without lowering the transparency, we wouldn't be able to see *how many* points there are where the child height is 70 inches and the average parent height is 68 inches, the darker the point, the more dense the data is at that point.
 
-**Question 4:** Considering best practices, how does using `coord_fixed()` enhance the authenticity of the information shown in the scatterplot, such as the relationship and spread of the data?
+**Question 4:** Considering best practices, how does using `coord_fixed()` enhance the authenticity of the information shown in the scatter plot, such as the relationship and spread of the data?
 
 **ANSWER**
 
-ERASE THIS TEXT AND ANSWER QUESTION HERE
+Fixing the coordinates allows us to see the data in a more accurate scale, and it allows us to be able to show to range of the average parent height and child height easily in the scatter plot, whereas a different scale can give you a misleading visualization. Fixed coordinates that are true to scale is a more honest representation of data. There are some cases where axes need to be scaled in order to fit all of the data in one graph; that was not needed here. 
+
+***
+```{r}
+sessionInfo()
+```
+
+
+### Datasets Used
+
+#### Background of the Data
+
+Francis Galton, a cousin of Charles Darwin, studied the relationship between parent heights and the heights of their offspring. His pioneering [1886 article](https://galton.org/essays/1880-1889/galton-1886-jaigi-regression-stature.pdf) is the first appearance of regression analysis in print. He originated many statistical terms and concepts, including regression, correlation, deviate, quartile, and percentile, as well as median for the midpoint of a distribution. The `galtondata` dataset was [recreated under the direction of Dr. James A. Hanley](http://www.medicine.mcgill.ca/epidemiology/hanley/galton/) using Galton's [original paper notebooks](http://www.medicine.mcgill.ca/epidemiology/hanley/galton/notebook/index.html) containing the measurement data. 
+
+#### Variables
+
+* `FamilyID`: family identifier, labeled 1 to 205
+* `Children` : number of children in the family
+* `Father`: father’s measured height in inches
+* `Mother`: mother’s measured height in inches
+* `Child`: whether the child was a son or a daughter
+* `Height`: child’s measured height in inches
+
+```{r loadgaltondata}
+galtondata <- read_rds("data/galtondata.rds")
+```
+
+<hr>
+
+## Analyses
+
+### Create the Analysis Datasets
+
+#### Children Dataset
+
+In his [original article](http://www.stat.ucla.edu/~nchristo/statistics100C/history_regression.pdf) on regression, Galton explained: “My data consisted of the heights of 930 adult children and of their respective parentages, 205 in number. In every case I transmuted the female statures to their corresponding male equivalents and used them in their transmuted form… The factor I used was 1.08, which is equivalent to adding a little less than one-twelfth to each female height. It differs a very little from the factors employed by other anthropologists…”
+
+Manipulate the dataset so that it has the following structure. 
+
+* contains these variables:
+   * `familyid` = ID number of the family
+   * `num_children`= number of children in the family
+   * `father_ht` = father's measured height
+   * `mother_ht` = mother's "transmuted" height (per Galton)
+   * `midparent_ht` = average of the parents' heights (using transmuted mother)
+   * `child_sex`= whether the child is a son/daughter, in lower case (i.e., `son` vs. `Son`)
+   * `child_ht_raw` = child’s measured height in inches
+   * `child_ht` = child's height with daughters "transmuted" (per Galton)
+   
+* is arranged according to:
+   * ascending order of familyid
+   * sons before daughters within each family
+   * ascending order of measured height within each sex of child
+
+```{r datasetmanip1}
+childdata <- galtondata %>%
+  transmute(familyid = FamilyID, 
+            num_children = Children, 
+            father_ht = Father, 
+            mother_ht = Mother*1.08, 
+            midparent_ht = (father_ht + mother_ht)/2, 
+            child_sex = ifelse(Child == "Daughter", "daughter", "son"), 
+            child_ht_raw = Height, 
+            child_ht = ifelse(child_sex == "daughter", child_ht_raw*1.08, child_ht_raw)) %>%
+  arrange(child_ht_raw) %>%
+  arrange(desc(child_sex)) %>%
+  arrange(familyid)
+
+```
+
+#### Parents Dataset
+
+From the child dataset, select the variables `familyid`, `num_children`, `father_ht`, and `mother_ht`. Use `distinct()` to reduce the dataset so it contains only one unique row per family. (Hint: The final dataset should have 205 rows/observations and four variables/columns.)
+
+```{r datasetmanip2}
+childdata %>%
+  select(familyid, num_children, father_ht, mother_ht) %>%
+  distinct(familyid, .keep_all = TRUE)
+```
+
+### Visualization 1: Updated Scatterplot
+
+#### Galton's Visualization
+
+In his original paper (linked above), Galton created several tables and diagrams. His "Diagram Based on Table 1" of them is similar in concept to a scatterplot. Rather than dots, he grouped/tabulated the data, and then used the count of how many people were grouped at the coordinate pairs in his grid, with child as the x-axis and mid-parent as the y-axis. There are two scales: inches and deviations from 68.25 inches.
+
+```{r galtonscatterplot, echo = FALSE}
+knitr::include_graphics(path = "images/galtonplot.png")
+```
+
+#### Your Data Visualization
+
+**This plot uses the children dataset.**
+
+Create a scatterplot of child height (x-axis) versus mid-parent height (y-axis). Ordinarily, we might reverse the axes here because analysts would be more likely to model child height as a function of parent height, but we want to be able to compare the updated plot to Galton's original.
+
+Include the following.
+
+* make your dots larger than the default size to help show density
+* set transparency to adjust for overplotting and help show density
+* use `color =` in the `aes` to differentiate sons versus daughters
+* use `scale_color_manual()` to choose two colorblind-safe colors
+* scale both axes so that there is a tick mark at every whole inch
+* use `coord_fixed()` so that the axes have the same unit spacing
+* add better x- and y-axis labels, including the units of measure
+* add an informative title (you may optionally include a subtitle)
+* add `color =` to `labs()` to set the legend title to `"gender of child"` 
+* use a built-in theme (e.g., `theme_linedraw()`) to add formatting
+* use `theme()` to move the legend to the bottom of the scatterplot
+
+```{r updatedscatterplot}
+ggplot(childdata, aes(x = child_ht_raw, y = midparent_ht, color = child_sex)) +
+  geom_point(size = 2, alpha = 0.5) +
+  scale_color_manual(values = c("#CC79A7", "#0072B2")) +
+  coord_fixed() +
+  theme_linedraw() +
+  labs(title = "Adult Childs Height compared to Mean Parents Height", 
+       x = "Child Height (in)", 
+       y = "Average Parent Height (in)", 
+       color = "gender of child") +
+  theme(legend.position = "bottom", legend.title = element_text())
+```
+
+### Visualization 2: "Transmuting" Effect
+
+**These plots use the children dataset.**
+
+#### The Raw Data
+
+Use `histogram()` or `density()` to plot `child_ht_raw`. Use faceting so that there is a separate plot for sons and daughters, with one plot above the other (*not* side by side). If you use a histogram, change the default `bins = 30` to a reasonable value for the data. Choose appropriate colors, labels, themes, and/or and other types of formatting that you feel will enhance the meaning or visual appearance of the plot. 
+
+```{r heightcomparison1}
+ggplot(childdata, aes(x = child_ht_raw, fill = child_sex)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~child_sex, ncol = 1) +
+  theme_bw() +
+  labs(title = "Heights of Sons and Daughters", 
+       x = "Height (in)",
+       y = "Frequency",
+       fill = "gender of child") 
+```
+
+Use `group_by()` and `summarize()` to calculate the mean, standard deviation, minimum, median, and maximum of the measured heights for sons and daughters.
+
+```{r rawhtsummaries}
+childdata %>%
+  group_by(child_sex) %>%
+  summarize(mean = mean(child_ht_raw), 
+            sd = sd(child_ht_raw), 
+            minimum = min(child_ht_raw),
+            median = median(child_ht_raw), 
+            maximum = max(child_ht_raw))
+```
+
+#### The Transmuted Data
+
+Create a similar plot as above, this time for `child_ht`. Be sure that the labels you use clearly distinguish between this plot and the previous one, especially if the other styling is very similar.
+
+```{r heightcomparison2}
+ggplot(childdata, aes(x = child_ht, fill = child_sex)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~child_sex, ncol = 1) +
+  theme_bw() +
+  labs(title = " Transmuted Heights of Sons and Daughters", 
+       x = "Height (in)",
+       y = "Frequency",
+       fill = "gender of child") 
+```
+
+Use `group_by()` and `summarize()` to calculate the mean, standard deviation, minimum, median, and maximum of the transmuted heights for sons and daughters.
+
+```{r transhtsummaries}
+childdata %>%
+  group_by(child_sex) %>%
+  summarize(mean = mean(child_ht), 
+            sd = sd(child_ht), 
+            minimum = min(child_ht),
+            median = median(child_ht), 
+            maximum = max(child_ht))
+```
+
+### Visualization 3: Number of Children
+
+**This plot uses the parents dataset.**
+
+Create a barplot to show the distribution of the number of children per family. Set the bars to something other than the default `width`. Scale the x-axis so that there is a tick mark for each bar. Choose appropriate colors, labels, themes, and/or and other types of formatting that you feel will enhance the meaning or visual appearance of the plot.  (Hint: Use `count()` to find out how many families have a given number of children, then use that smaller summary dataset to create your plot.)
+
+```{r numchildrenbarplot}
+numchild <- childdata %>%
+  count(num_children)
+
+head(numchild)
+
+ggplot(numchild, aes(x = num_children, y = n)) +
+  geom_col(width = .75, fill = "#56B4E9") +
+  theme_bw() +
+  labs(title = "Number of Children Per Family", 
+       x = "Number of Children",
+       y = "Frequency") +
+  scale_x_continuous(breaks = seq(0, 15, 1))
+```
+
+<hr>
+
+## Questions
+
+**Question 1:** Do you think your scatterplot is an improvement over Galton's original diagram? Are there any other modifications and/or additions you would make to enhance the clarity or usefulness of your plot?
+
+**ANSWER**
+
+We think that our scatterplot is an improvement over Galton's original diagram. We found Galton's original diagram difficult to interpret. The only improvement that comes to mind would be altering the axis labels and tick marks on the y axes of our graphs in order to make it more clear what the exact y values are. There are not any other modifications that we can think of to improve our scatterplot; we have all the information we need in an informative and easy to read way. 
+
+
+**Question 2:** Did Galton's "transmuting" of daughters' heights succeed in making their data more similar to sons? How can you tell, based on your data visualizations and summaries?
+
+**ANSWER**
+
+Yes, the daughters' heights were more similar to the sons' after transmuting the data. We can tell by looking at the distributions of the daughters' heights with and without transmuting the data. Without the transmuting of the data, the daughters' heights range from 56 to 70.5 inches, with the transmuting of the data the daughters' heights range from 60.48	to 76.14 inches, and the sons' heights range from 60 to 79 inches. The increase in the daughters' heights makes them much closer to the sons'!
+
+**Question 3:** Explain the rationale behind the choices you made when creating your plots, such as size, color, transparency, or other features that were not explicitly stated. What motivated your decisions? 
+
+**ANSWER**
+
+Color was often used to make the plot look more visually pleasing or to contrast two different subgroups. We also changed the bin width of histograms so the data was easier to read and allows a reader to be able to differentiate between the different groups. We also changed the size of the points in the scatter plots to emphasize each point, without causing too much overlap of the other data points, causing a cluster that you are unable to read. Additionally we altered the transparency of the points in our scatter plot in order to make the density of data points at a specific spot easier to see, for example, without lowering the transparency, we wouldn't be able to see *how many* points there are where the child height is 70 inches and the average parent height is 68 inches, the darker the point, the more dense the data is at that point.
+
+**Question 4:** Considering best practices, how does using `coord_fixed()` enhance the authenticity of the information shown in the scatter plot, such as the relationship and spread of the data?
+
+**ANSWER**
+
+Fixing the coordinates allows us to see the data in a more accurate scale, and it allows us to be able to show to range of the average parent height and child height easily in the scatter plot, whereas a different scale can give you a misleading visualization. Fixed coordinates that are true to scale is a more honest representation of data. There are some cases where axes need to be scaled in order to fit all of the data in one graph; that was not needed here. 
+
+***
+```{r}
+sessionInfo()
+```
+
+### Datasets Used
+
+#### Background of the Data
+
+Francis Galton, a cousin of Charles Darwin, studied the relationship between parent heights and the heights of their offspring. His pioneering [1886 article](https://galton.org/essays/1880-1889/galton-1886-jaigi-regression-stature.pdf) is the first appearance of regression analysis in print. He originated many statistical terms and concepts, including regression, correlation, deviate, quartile, and percentile, as well as median for the midpoint of a distribution. The `galtondata` dataset was [recreated under the direction of Dr. James A. Hanley](http://www.medicine.mcgill.ca/epidemiology/hanley/galton/) using Galton's [original paper notebooks](http://www.medicine.mcgill.ca/epidemiology/hanley/galton/notebook/index.html) containing the measurement data. 
+
+#### Variables
+
+* `FamilyID`: family identifier, labeled 1 to 205
+* `Children` : number of children in the family
+* `Father`: father’s measured height in inches
+* `Mother`: mother’s measured height in inches
+* `Child`: whether the child was a son or a daughter
+* `Height`: child’s measured height in inches
+
+```{r loadgaltondata}
+galtondata <- read_rds("data/galtondata.rds")
+```
+
+<hr>
+
+## Analyses
+
+### Create the Analysis Datasets
+
+#### Children Dataset
+
+In his [original article](http://www.stat.ucla.edu/~nchristo/statistics100C/history_regression.pdf) on regression, Galton explained: “My data consisted of the heights of 930 adult children and of their respective parentages, 205 in number. In every case I transmuted the female statures to their corresponding male equivalents and used them in their transmuted form… The factor I used was 1.08, which is equivalent to adding a little less than one-twelfth to each female height. It differs a very little from the factors employed by other anthropologists…”
+
+Manipulate the dataset so that it has the following structure. 
+
+* contains these variables:
+   * `familyid` = ID number of the family
+   * `num_children`= number of children in the family
+   * `father_ht` = father's measured height
+   * `mother_ht` = mother's "transmuted" height (per Galton)
+   * `midparent_ht` = average of the parents' heights (using transmuted mother)
+   * `child_sex`= whether the child is a son/daughter, in lower case (i.e., `son` vs. `Son`)
+   * `child_ht_raw` = child’s measured height in inches
+   * `child_ht` = child's height with daughters "transmuted" (per Galton)
+   
+* is arranged according to:
+   * ascending order of familyid
+   * sons before daughters within each family
+   * ascending order of measured height within each sex of child
+
+```{r datasetmanip1}
+childdata <- galtondata %>%
+  transmute(familyid = FamilyID, 
+            num_children = Children, 
+            father_ht = Father, 
+            mother_ht = Mother*1.08, 
+            midparent_ht = (father_ht + mother_ht)/2, 
+            child_sex = ifelse(Child == "Daughter", "daughter", "son"), 
+            child_ht_raw = Height, 
+            child_ht = ifelse(child_sex == "daughter", child_ht_raw*1.08, child_ht_raw)) %>%
+  arrange(child_ht_raw) %>%
+  arrange(desc(child_sex)) %>%
+  arrange(familyid)
+
+```
+
+#### Parents Dataset
+
+From the child dataset, select the variables `familyid`, `num_children`, `father_ht`, and `mother_ht`. Use `distinct()` to reduce the dataset so it contains only one unique row per family. (Hint: The final dataset should have 205 rows/observations and four variables/columns.)
+
+```{r datasetmanip2}
+childdata %>%
+  select(familyid, num_children, father_ht, mother_ht) %>%
+  distinct(familyid, .keep_all = TRUE)
+```
+
+### Visualization 1: Updated Scatterplot
+
+#### Galton's Visualization
+
+In his original paper (linked above), Galton created several tables and diagrams. His "Diagram Based on Table 1" of them is similar in concept to a scatterplot. Rather than dots, he grouped/tabulated the data, and then used the count of how many people were grouped at the coordinate pairs in his grid, with child as the x-axis and mid-parent as the y-axis. There are two scales: inches and deviations from 68.25 inches.
+
+```{r galtonscatterplot, echo = FALSE}
+knitr::include_graphics(path = "images/galtonplot.png")
+```
+
+#### Your Data Visualization
+
+**This plot uses the children dataset.**
+
+Create a scatterplot of child height (x-axis) versus mid-parent height (y-axis). Ordinarily, we might reverse the axes here because analysts would be more likely to model child height as a function of parent height, but we want to be able to compare the updated plot to Galton's original.
+
+Include the following.
+
+* make your dots larger than the default size to help show density
+* set transparency to adjust for overplotting and help show density
+* use `color =` in the `aes` to differentiate sons versus daughters
+* use `scale_color_manual()` to choose two colorblind-safe colors
+* scale both axes so that there is a tick mark at every whole inch
+* use `coord_fixed()` so that the axes have the same unit spacing
+* add better x- and y-axis labels, including the units of measure
+* add an informative title (you may optionally include a subtitle)
+* add `color =` to `labs()` to set the legend title to `"gender of child"` 
+* use a built-in theme (e.g., `theme_linedraw()`) to add formatting
+* use `theme()` to move the legend to the bottom of the scatterplot
+
+```{r updatedscatterplot}
+ggplot(childdata, aes(x = child_ht_raw, y = midparent_ht, color = child_sex)) +
+  geom_point(size = 2, alpha = 0.5) +
+  scale_color_manual(values = c("#CC79A7", "#0072B2")) +
+  coord_fixed() +
+  theme_linedraw() +
+  labs(title = "Adult Childs Height compared to Mean Parents Height", 
+       x = "Child Height (in)", 
+       y = "Average Parent Height (in)", 
+       color = "gender of child") +
+  theme(legend.position = "bottom", legend.title = element_text())
+```
+
+### Visualization 2: "Transmuting" Effect
+
+**These plots use the children dataset.**
+
+#### The Raw Data
+
+Use `histogram()` or `density()` to plot `child_ht_raw`. Use faceting so that there is a separate plot for sons and daughters, with one plot above the other (*not* side by side). If you use a histogram, change the default `bins = 30` to a reasonable value for the data. Choose appropriate colors, labels, themes, and/or and other types of formatting that you feel will enhance the meaning or visual appearance of the plot. 
+
+```{r heightcomparison1}
+ggplot(childdata, aes(x = child_ht_raw, fill = child_sex)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~child_sex, ncol = 1) +
+  theme_bw() +
+  labs(title = "Heights of Sons and Daughters", 
+       x = "Height (in)",
+       y = "Frequency",
+       fill = "gender of child") 
+```
+
+Use `group_by()` and `summarize()` to calculate the mean, standard deviation, minimum, median, and maximum of the measured heights for sons and daughters.
+
+```{r rawhtsummaries}
+childdata %>%
+  group_by(child_sex) %>%
+  summarize(mean = mean(child_ht_raw), 
+            sd = sd(child_ht_raw), 
+            minimum = min(child_ht_raw),
+            median = median(child_ht_raw), 
+            maximum = max(child_ht_raw))
+```
+
+#### The Transmuted Data
+
+Create a similar plot as above, this time for `child_ht`. Be sure that the labels you use clearly distinguish between this plot and the previous one, especially if the other styling is very similar.
+
+```{r heightcomparison2}
+ggplot(childdata, aes(x = child_ht, fill = child_sex)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~child_sex, ncol = 1) +
+  theme_bw() +
+  labs(title = " Transmuted Heights of Sons and Daughters", 
+       x = "Height (in)",
+       y = "Frequency",
+       fill = "gender of child") 
+```
+
+Use `group_by()` and `summarize()` to calculate the mean, standard deviation, minimum, median, and maximum of the transmuted heights for sons and daughters.
+
+```{r transhtsummaries}
+childdata %>%
+  group_by(child_sex) %>%
+  summarize(mean = mean(child_ht), 
+            sd = sd(child_ht), 
+            minimum = min(child_ht),
+            median = median(child_ht), 
+            maximum = max(child_ht))
+```
+
+### Visualization 3: Number of Children
+
+**This plot uses the parents dataset.**
+
+Create a barplot to show the distribution of the number of children per family. Set the bars to something other than the default `width`. Scale the x-axis so that there is a tick mark for each bar. Choose appropriate colors, labels, themes, and/or and other types of formatting that you feel will enhance the meaning or visual appearance of the plot.  (Hint: Use `count()` to find out how many families have a given number of children, then use that smaller summary dataset to create your plot.)
+
+```{r numchildrenbarplot}
+numchild <- childdata %>%
+  count(num_children)
+
+head(numchild)
+
+ggplot(numchild, aes(x = num_children, y = n)) +
+  geom_col(width = .75, fill = "#56B4E9") +
+  theme_bw() +
+  labs(title = "Number of Children Per Family", 
+       x = "Number of Children",
+       y = "Frequency") +
+  scale_x_continuous(breaks = seq(0, 15, 1))
+```
+
+<hr>
+
+## Questions
+
+**Question 1:** Do you think your scatterplot is an improvement over Galton's original diagram? Are there any other modifications and/or additions you would make to enhance the clarity or usefulness of your plot?
+
+**ANSWER**
+
+We think that our scatterplot is an improvement over Galtons original diagram. We found Galtons original diagram difficult to interpret and our Average Child Height range is broader this Galtons. There are not any modifications that we can think of to improve our scatterplot because we have all the information we need in an imformative and readable way. 
+
+
+**Question 2:** Did Galton's "transmuting" of daughters' heights succeed in making their data more similar to sons? How can you tell, based on your data visualizations and summaries?
+
+**ANSWER**
+
+Yes, the daughters' heights were more similar to the sons after transmuting the data. We can tell by looking at the distributions of the daughters' heights with and without transmuting the data. Without the transmuting of the data, the daughters' heights range from 56 to 70.5 inches, with the transmuting of the data the daughters' heights range from 60.48	to 76.14 inches, and the sons range from 60 to79 inches. The increase in the daughters' heights makes them much closer to the sons!
+
+**Question 3:** Explain the rationale behind the choices you made when creating your plots, such as size, color, transparency, or other features that were not explicitly stated. What motivated your decisions? 
+
+**ANSWER**
+
+Color was often used to make the plot look more visually pleasing or to contrast two different subgroups. We also changed the bin width of histograms so the data was easier to read and allows a reader to be able to differentiate between the different groups. We also changed the size in the scatterplots to really show each dot, without causing too much overlap of the other data points, causing a cluster that you are unable to read. 
+
+**Question 4:** Considering best practices, how does using `coord_fixed()` enhance the authenticity of the information shown in the scatter plot, such as the relationship and spread of the data?
+
+**ANSWER**
+
+Fixing the coordinates allows us to see the data in a more accurate scale and be able to show to range of the average parent height and child height easily in the scatterplot, whereas a different scale can give you a misleading visualization. 
 
 ***
 ```{r}
